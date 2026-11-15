@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Patient Health Monitor</title>
+<style>
+:root{--bg:#0B1220;--panel:#111C2F;--line:#22324D;--text:#E6EDF7;--muted:#93A4BF;--ok:#34D399;--bad:#F87171;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 48px}
+header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+h1{font-size:1.4rem;margin:0}
+.sub{color:var(--muted);font-size:.85rem}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border:1px solid var(--line);border-radius:999px;background:var(--panel);font-size:.85rem}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+.live .dot{background:var(--ok);box-shadow:0 0 0 4px #34d39926}
+.off .dot{background:var(--bad)}
+.note{border-left:3px solid var(--line);padding:4px 12px;color:var(--muted);font-size:.85rem;margin:0 0 20px}
+.cards{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-bottom:24px}
+.card{background:var(--panel);border:1px solid var(--line);border-top:3px solid var(--c);border-radius:12px;padding:16px}
+.card h2{font-size:.9rem;font-weight:600;color:var(--muted);margin:0 0 8px}
+.val{font-size:2.6rem;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.val small{font-size:1rem;color:var(--muted);font-weight:500;margin-left:4px}
+.card.stale .val{opacity:.4}
+.meta{margin-top:10px;font-size:.8rem;color:var(--muted);min-height:1.2em}
+.meta .bad{color:var(--bad)}.meta .ok{color:var(--ok)}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+.head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+h3{font-size:1rem;margin:0}
+.seg{display:flex;flex-wrap:wrap;gap:6px}
+button{font:inherit;font-size:.82rem;color:var(--muted);background:transparent;border:1px solid var(--line);border-radius:8px;padding:5px 11px;cursor:pointer}
+button:hover{color:var(--text)}
+button[aria-pressed="true"]{color:var(--bg);background:var(--text);border-color:var(--text)}
+button:focus-visible{outline:2px solid #22D3EE;outline-offset:2px}
+.charts{display:grid;gap:12px;grid-template-columns:1fr 1fr}
+.charts .panel{margin:0}.wide{grid-column:1/-1}
+.cv{position:relative;height:240px}
+.scroll{max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th,td{padding:8px 12px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+th{position:sticky;top:0;background:#16253B;color:var(--muted);font-weight:600}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+tr:last-child td{border-bottom:0}
+.sw{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:8px}
+.empty{padding:24px;text-align:center;color:var(--muted)}
+@media(max-width:700px){.charts{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Patient health monitor</h1>
+      <div class="sub">ESP32 sensors via Adafruit IO</div>
+    </div>
+    <div id="status" class="pill off"><span class="dot"></span><span id="status-text">Connecting…</span></div>
+  </header>
+  <p class="note">Educational prototype. Not a medical device and not for diagnosis.</p>
+
+  <section class="cards" aria-label="Latest readings">
+    <article class="card" id="card-max" style="--c:#22D3EE">
+      <h2>Heart rate (MAX30102)</h2>
+      <div class="val"><span id="v-max">--</span><small>BPM</small></div>
+      <div class="meta"><span id="r-max"></span> <span id="a-max"></span></div>
+    </article>
+    <article class="card" id="card-spo2" style="--c:#34D399">
+      <h2>Blood oxygen (SpO₂)</h2>
+      <div class="val"><span id="v-spo2">N/A</span><small>%</small></div>
+      <div class="meta"><span id="a-spo2">The ESP32 does not publish SpO₂ yet.</span></div>
+    </article>
+    <article class="card" id="card-hw" style="--c:#F5B94B">
+      <h2>Heart rate (HW-827, experimental)</h2>
+      <div class="val"><span id="v-hw">--</span><small>BPM</small></div>
+      <div class="meta"><span id="a-hw"></span></div>
+    </article>
+    <article class="card" id="card-temp" style="--c:#FB923C">
+      <h2>Body temperature</h2>
+      <div class="val"><span id="v-temp">--</span><small>°C</small></div>
+      <div class="meta"><span id="a-temp"></span></div>
+    </article>
+    <article class="card" id="card-hum" style="--c:#60A5FA">
+      <h2>Humidity (DHT11)</h2>
+      <div class="val"><span id="v-hum">--</span><small>%</small></div>
+      <div class="meta"><span id="a-hum"></span></div>
+    </article>
+  </section>
+
+  <section class="panel" aria-label="PPG wave">
+    <h3>PPG pulse wave</h3>
+    <div class="cv" style="height:200px">
+      <canvas id="c-ppg"></canvas>
+      <div class="empty" id="ppg-empty" style="position:absolute;inset:0;display:grid;place-items:center">No PPG signal. The ESP32 does not publish raw pulse-sensor data yet.</div>
+    </div>
+  </section>
+
+  <section aria-label="Trends">
+    <div class="head">
+      <h3>Trends</h3>
+      <div class="seg" id="range" role="group" aria-label="Time range">
+        <button data-r="900000" aria-pressed="true">15 minutes</button>
+        <button data-r="3600000" aria-pressed="false">1 hour</button>
+        <button data-r="0" aria-pressed="false">All loaded</button>
+      </div>
+    </div>
+    <div class="charts">
+      <div class="panel wide"><h3>Heart rate (BPM)</h3><div class="cv"><canvas id="c-hr"></canvas></div></div>
+      <div class="panel"><h3>Body temperature (°C)</h3><div class="cv"><canvas id="c-temp"></canvas></div></div>
+      <div class="panel"><h3>Humidity (%)</h3><div class="cv"><canvas id="c-hum"></canvas></div></div>
+    </div>
+  </section>
+
+  <section class="panel" style="margin-top:12px" aria-label="Reading history">
+    <div class="head">
+      <div><h3>Reading history</h3><div class="sub" id="count"></div></div>
+      <div class="seg"><div class="seg" id="filter" role="group" aria-label="Filter by sensor"></div><button id="csv">Download CSV</button></div>
+    </div>
+    <div class="scroll" tabindex="0">
+      <table>
+        <thead><tr><th>Time</th><th>Sensor</th><th class="num">Reading</th></tr></thead>
+        <tbody id="log"></tbody>
+      </table>
+      <div class="empty" id="empty">Waiting for the first reading from the ESP32…</div>
+    </div>
+  </section>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+(() => {
+  'use strict';
+  const BASE = 'https://io.adafruit.com/api/v2/GouravSingh/feeds/';
+  const POLL = 5000, STALE = 45000, MAXLOG = 2000;
+  const F = {
+    max:  { key: 'max30102-heart-rate', label: 'MAX30102 heart rate', unit: 'BPM', dec: 0, hr: true, color: '#22D3EE' },
+    hw:   { key: 'hw-827-heart-rate',   label: 'HW-827 heart rate',   unit: 'BPM', dec: 0, hr: true, color: '#F5B94B', dash: [6, 4] },
+    temp: { key: 'temperature',         label: 'Body temperature',       unit: '°C',  dec: 1, color: '#FB923C' },
+    hum:  { key: 'humidity',            label: 'Humidity',            unit: '%',   dec: 1, color: '#60A5FA' }
+  };
+  // Optional feeds. Put the Adafruit IO feed key here once the ESP32 publishes it; leave '' to show N/A.
+  const SPO2_FEED = '', PPG_FEED = '';
+  if (SPO2_FEED) F.spo2 = { key: SPO2_FEED, label: 'Blood oxygen', unit: '%', dec: 1, color: '#34D399' };
+  if (PPG_FEED) F.ppg = { key: PPG_FEED, label: 'PPG signal', unit: '', dec: 0, color: '#F472B6' };
+  const ids = Object.keys(F);
+  const $ = id => document.getElementById(id);
+  let log = [], seen = {}, latest = {}, range = 900000, filter = 'all', charts = [];
+
+  const fmtDT = t => new Date(t).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const fmtAge = ms => { const s = Math.max(0, Math.round(ms / 1000)); return s < 60 ? s + ' s ago' : s < 3600 ? Math.round(s / 60) + ' min ago' : Math.round(s / 3600) + ' h ago'; };
+
+  async function get(url) {
+    const r = await fetch(url, { cache: 'no-store' });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }
+
+  function add(id, v, t) {
+    if (!Number.isFinite(v) || !Number.isFinite(t) || (F[id].hr && v <= 0) || t <= (seen[id] || 0)) return false;
+    seen[id] = t;
+    log.push({ id, v, t });
+    if (!latest[id] || t > latest[id].t) latest[id] = { v, t };
+    return true;
+  }
+
+  async function loadHistory() {
+    await Promise.allSettled(ids.map(async id => {
+      const rows = await get(BASE + F[id].key + '/data?limit=100');
+      rows.reverse().forEach(r => add(id, Number(r.value), Date.parse(r.created_at)));
+    }));
+    log.sort((a, b) => a.t - b.t);
+  }
+
+  async function poll() {
+    const res = await Promise.allSettled(ids.map(id => get(BASE + F[id].key + '/data/last_value?type=json')));
+    let ok = 0, added = false;
+    res.forEach((r, i) => {
+      if (r.status !== 'fulfilled') return;
+      ok++;
+      if (add(ids[i], Number(r.value.value), Date.parse(r.value.created_at))) added = true;
+    });
+    if (added) { log.sort((a, b) => a.t - b.t); if (log.length > MAXLOG) log = log.slice(-MAXLOG); }
+    if (!ok) setStatus(false, 'Could not reach Adafruit IO');
+    render();
+  }
+
+  function setStatus(live, text) {
+    $('status').className = 'pill ' + (live ? 'live' : 'off');
+    $('status-text').textContent = text;
+  }
+
+  function renderAges() {
+    const now = Date.now();
+    let newest = 0;
+    ids.forEach(id => {
+      const l = latest[id];
+      $('card-' + id).classList.toggle('stale', !l || now - l.t > STALE);
+      $('a-' + id).textContent = l ? 'Updated ' + fmtAge(now - l.t) : 'Waiting for data';
+      if (l && l.t > newest) newest = l.t;
+    });
+    if (!newest) { setStatus(false, 'No readings yet'); return; }
+    const age = now - newest;
+    setStatus(age <= STALE, age <= STALE ? 'Live, updated ' + fmtAge(age) : 'Offline, last data ' + fmtAge(age));
+  }
+
+  function renderCards() {
+    ids.forEach(id => {
+      const l = latest[id];
+      $('v-' + id).textContent = l ? l.v.toFixed(F[id].dec) : '--';
+    });
+    const r = $('r-max'), m = latest.max;
+    if (m) {
+      const inside = m.v >= 50 && m.v <= 120;
+      r.className = inside ? 'ok' : 'bad';
+      r.textContent = inside ? 'Within 50–120 BPM.' : 'Outside 50–120 BPM.';
+    } else r.textContent = '';
+  }
+
+  function renderLog() {
+    const rows = log.filter(e => filter === 'all' || e.id === filter).slice(-500).reverse();
+    const frag = rows.map(e => {
+      const tr = document.createElement('tr');
+      const c1 = document.createElement('td'); c1.textContent = fmtDT(e.t);
+      const c2 = document.createElement('td');
+      const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = F[e.id].color;
+      c2.append(sw, F[e.id].label);
+      const c3 = document.createElement('td'); c3.className = 'num'; c3.textContent = e.v.toFixed(F[e.id].dec) + ' ' + F[e.id].unit;
+      tr.append(c1, c2, c3);
+      return tr;
+    });
+    $('log').replaceChildren(...frag);
+    $('empty').hidden = rows.length > 0;
+    $('count').textContent = log.length + ' readings loaded, showing the latest ' + rows.length;
+  }
+
+  function mkChart(canvas, feedIds) {
+    const chart = new Chart($(canvas), {
+      type: 'line',
+      data: { datasets: feedIds.map(id => ({
+        label: F[id].label, data: [], borderColor: F[id].color, backgroundColor: F[id].color,
+        borderWidth: 2, borderDash: F[id].dash || [], pointRadius: 2.5, pointHoverRadius: 5, tension: .25, spanGaps: true
+      })) },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false, parsing: false,
+        interaction: { mode: 'nearest', axis: 'x', intersect: false },
+        plugins: {
+          legend: { display: feedIds.length > 1, labels: { color: '#93A4BF', boxWidth: 12 } },
+          tooltip: { callbacks: { title: items => fmtDT(items[0].parsed.x) } }
+        },
+        scales: {
+          x: { type: 'linear', grid: { color: '#22324D' }, ticks: { color: '#93A4BF', maxTicksLimit: 6, callback: v => new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) } },
+          y: { grace: '10%', grid: { color: '#22324D' }, ticks: { color: '#93A4BF' } }
+        }
+      }
+    });
+    charts.push({ chart, feedIds });
+  }
+
+  function renderCharts() {
+    const now = Date.now(), cut = range ? now - range : 0;
+    charts.forEach(({ chart, feedIds }) => {
+      feedIds.forEach((id, i) => {
+        chart.data.datasets[i].data = log.filter(e => e.id === id && e.t >= cut).map(e => ({ x: e.t, y: e.v }));
+      });
+      chart.options.scales.x.min = range ? cut : undefined;
+      chart.options.scales.x.max = range ? now : undefined;
+      chart.update('none');
+    });
+  }
+
+  function render() { renderCards(); renderAges(); renderLog(); renderCharts(); }
+
+  function bindControls() {
+    $('range').addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      range = Number(b.dataset.r);
+      $('range').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+      renderCharts();
+    });
+    const f = $('filter');
+    [['all', 'All sensors']].concat(ids.map(id => [id, F[id].label])).forEach(([id, label]) => {
+      const b = document.createElement('button');
+      b.textContent = label; b.dataset.f = id; b.setAttribute('aria-pressed', id === 'all');
+      f.appendChild(b);
+    });
+    f.addEventListener('click', e => {
+      const b = e.target.closest('button'); if (!b) return;
+      filter = b.dataset.f;
+      f.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b));
+      renderLog();
+    });
+    $('csv').addEventListener('click', () => {
+      const lines = ['time,sensor,value,unit'].concat(log.map(e => new Date(e.t).toISOString() + ',' + F[e.id].label + ',' + e.v + ',' + F[e.id].unit));
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+      a.download = 'health-readings.csv';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  }
+
+  async function init() {
+    bindControls();
+    if (window.Chart) { if (F.ppg) { mkChart('c-ppg', ['ppg']); $('ppg-empty').style.display = 'none'; } mkChart('c-hr', ['max', 'hw']); mkChart('c-temp', ['temp']); mkChart('c-hum', ['hum']); }
+    await loadHistory();
+    await poll();
+    setInterval(poll, POLL);
+    setInterval(renderAges, 1000);
+  }
+  document.addEventListener('DOMContentLoaded', init);
+})();
+</script>
+</body>
+</html>
