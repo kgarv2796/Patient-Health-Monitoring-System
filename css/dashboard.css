@@ -1,0 +1,18 @@
+/* Small project stylesheet; Tailwind handles the dashboard layout. */
+:root { color-scheme: dark; }
+html { scroll-behavior: smooth; }
+body { background: #0b1220; }
+.health-card { background: rgba(17, 28, 46, .88); border: 1px solid rgba(51, 65, 85, .65); border-radius: 1rem; box-shadow: 0 12px 30px rgba(0,0,0,.16); }
+.btn-pill { display:inline-flex; align-items:center; justify-content:center; gap:.4rem; border-radius:999px; font-weight:700; transition:all .18s ease; cursor:pointer; }
+.btn-primary { background:#0891b2; color:#ecfeff; border:1px solid #06b6d4; }
+.btn-primary:hover { background:#0e7490; }
+.btn-outline { border:1px solid #475569; color:#cbd5e1; background:rgba(15,23,42,.65); }
+.btn-outline:hover { border-color:#22d3ee; color:#67e8f9; }
+.status-pill { padding:.2rem .55rem; border-radius:999px; font-size:.68rem; font-weight:800; letter-spacing:.04em; }
+.status-pill-normal { color:#34d399; background:rgba(16,185,129,.12); border:1px solid rgba(16,185,129,.35); }
+.status-pill-offline { color:#fca5a5; background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.35); }
+.beacon-online { animation:pulse 1.8s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+.circle-progress { transition:stroke-dashoffset .4s ease; }
+button:focus-visible,select:focus-visible,input:focus-visible { outline:2px solid #22d3ee; outline-offset:2px; }
+canvas { max-width:100%; }
