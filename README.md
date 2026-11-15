@@ -6,6 +6,7 @@ An ESP32-based IoT patient and environmental monitoring prototype using the MAX3
 
 ---
 ## Demo Video
+https://youtu.be/ZqgmEOTAX0k?si=fiVp7zBhnzwd1ddw
 
 
 
